@@ -1,4 +1,5 @@
-# Employee Management & Payroll System Drop database Employee_Management_And_Payroll_System;
+# Employee Management & Payroll System
+ Drop database Employee_Management_And_Payroll_System;
 CREATE DATABASE  Employee_Management_And_Payroll_System; 
 
 USE Employee_Management_And_Payroll_System;
@@ -57,11 +58,21 @@ INSERT INTO attendence (att_id, att_date, status, emp_id) VALUES
 ('A03', '2024-01-11', 'Present', 103),
 ('A04', '2024-01-11', 'Present', 101),
 ('A05', '2024-01-12', 'Absent',  103),
-('A06', '2024-01-12', 'Absent', 105),
+('A06', '2024-01-12', 'Present', 105),
 ('A07', '2024-02-01', 'Present', 106),
 ('A08', '2024-02-01', 'Absent',  107),
 ('A09', '2024-02-02', 'Present', 108),
-('A10', '2024-02-02', 'Present', 101);
+('A10', '2024-02-02', 'Absent',  101),
+('A11', '2024-02-03', 'Absent',  102),
+('A12', '2024-02-03', 'Present', 103),
+('A13', '2024-03-01', 'Absent',  101),
+('A14', '2024-03-01', 'Present', 105),
+('A15', '2024-03-02', 'Absent',  106),
+('A16', '2024-03-02', 'Present', 107),
+('A17', '2024-03-03', 'Absent',  101),
+('A18', '2024-03-03', 'Present', 108),
+('A19', '2024-03-04', 'Absent',  101),
+('A20', '2024-03-04', 'Present', 102);
 
 CREATE TABLE salary(
 sal_id INT PRIMARY KEY UNIQUE NOT NULL AUTO_INCREMENT,
@@ -402,7 +413,7 @@ COMMIT;
 
 START TRANSACTION;
 INSERT INTO employees values('118','Rahul Goals',  'rahul.goals@email.com',  '98765422201', '2022-03-11','Active','D01');
-INSERT INTO salary values(118,5000, 5000, 2000, 118);
+INSERT INTO salary values(118,50000, 5000, 2000, 118);
 ROLLBACK;
 COMMIT;
 
@@ -411,7 +422,7 @@ COMMIT;
 START TRANSACTION;
 INSERT INTO employees values('119','Rahuls Goals',  'rahuls.goals@email.com',  '98765222201', '2022-03-10','Active','D01'); 
 SAVEPOINT emp_save;
-INSERT INTO salary values(119,5000, 5000, 2000, 119);
+INSERT INTO salary values(119,50000, 5000, 2000, 119);
 ROLLBACK TO emp_save;
 
 ---------------------------------------------------------------------------------------------------------------------------------------------
@@ -571,3 +582,125 @@ DROP INDEX empname On employees;
 5. columns never used in WHERE/JOIN
    → index nobody uses = wasted storage
 */
+
+# 48. Create a user for HR with read-only access. 
+
+DROP USER 'HR'@'LOCALHOST';
+CREATE USER 'HR'@'LOCALHOST' IDENTIFIED BY 'HR_readOnly';
+GRANT SELECT ON employee_management_and_payroll_system.* TO 'HR'@'LOCALHOST';
+
+# 49. Grant INSERT permission only on attendance table. 
+
+GRANT INSERT ON employee_management_and_payroll_system.attendence TO 'HR'@'LOCALHOST';
+
+# 50. Revoke DELETE permission from a user. 
+
+DROP USER 'IThead'@'LOCALHOST';
+CREATE USER 'IThead'@'LOCALHOST' IDENTIFIED BY 'IT_HEAD';
+GRANT DELETE ON employee_management_and_payroll_system.* TO 'IThead'@'LOCALHOST';
+REVOKE DELETE ON employee_management_and_payroll_system.* FROM 'IThead'@'LOCALHOST';
+
+# 51. What happens if department is deleted but employees exist? 
+
+/*
+MySQL throws Error 1451 and blocks the deletion because
+employees.dept_id references departments.dept_id via foreign key.
+To fix, reassign employees to another department first,
+then delete the department.
+*/
+
+# 52. How will you ensure salary consistency during payroll run? 
+
+/*
+Use TRANSACTIONS to ensure all salary updates either
+complete fully or rollback entirely if anything fails.
+This prevents partial updates where some employees
+get paid and others don't.
+*/
+
+# 53. How will you handle partial failure in payroll processing? 
+
+/*
+Use SAVEPOINTS inside a transaction so if one salary
+update fails, we rollback only to the last savepoint
+instead of losing all progress.
+*/
+
+# 54. Explain ACID properties using this project. 
+
+/*
+A - ATOMICITY
+    Either all operations complete or none do.
+    Example: inserting employee + salary together in Question 31,
+    if salary insert fails, employee insert also rolls back.
+
+C - CONSISTENCY
+    Database stays valid before and after transaction.
+    Example: emp_id in salary must always exist in employees,
+    foreign key constraints enforce this automatically.
+
+I - ISOLATION
+    Concurrent transactions don't interfere with each other.
+    Example: two HR users processing payroll simultaneously
+    won't overwrite each other's salary updates.
+
+D - DURABILITY
+    Once committed, data is permanently saved even if
+    MySQL crashes or server restarts.
+    Example: after COMMIT in payroll transaction, all
+    salary updates are permanently saved to disk.
+    */
+    
+    # 55. How will you design audit logging for salary changes? 
+    
+    /*
+    Create a salary_log table to track every change made
+to salary records, including old and new values,
+who changed it and when. Use an AFTER UPDATE trigger
+to automatically log every salary change.
+
+
+step 1: create log table
+CREATE TABLE salary_log(
+    log_id INT PRIMARY KEY AUTO_INCREMENT,
+    emp_id INT,
+    old_basic DECIMAL(10,2),
+    new_basic DECIMAL(10,2),
+    changed_at DATETIME,
+    action VARCHAR(100));
+
+step 2: create trigger to auto log changes
+DELIMITER $$
+CREATE TRIGGER log_salary_change
+AFTER UPDATE ON salary
+FOR EACH ROW
+BEGIN
+    INSERT INTO salary_log(emp_id, old_basic, new_basic, changed_at, action)
+    VALUES(OLD.emp_id, OLD.basic, NEW.basic, NOW(), 'SALARY UPDATED');
+END$$
+DELIMITER ;
+
+step 3: test it
+UPDATE salary SET basic = 99000 WHERE emp_id = 101;
+
+step 4: check log
+SELECT * FROM salary_log;
+*/
+
+/* 56. Write a single query to display: 
+• Employee Name 
+• Department 
+• Total Salary 
+• Attendance Count 
+*/
+
+SELECT e.emp_name, d.dept_name, s.basic + s.hra +s.bonus AS Total_salary, COUNT(a.att_id) AS att_count FROM attendence a
+JOIN employees e
+ON e.emp_id = a.emp_id
+JOIN departments d
+ON d.dept_id = e.dept_id
+JOIN salary s
+ON s.emp_id = e.emp_id
+GROUP BY e.emp_name, d.dept_name, s.basic + s.hra + s.bonus;
+
+# 57. Write a query to rank employees based on salary (without window functions). 
