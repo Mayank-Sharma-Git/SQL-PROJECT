@@ -137,6 +137,7 @@ INSERT INTO USER_ROLES (role_id, user_id) VALUES
 (1, 3);
 
 # 2. Insert 5 employee records into the employees table.
+	
 INSERT INTO employees (emp_id,emp_name, email, phone, hire_date, status, dept_id) VALUES
 ('111','Rahul Sharma',   'rahul.sharma@email.com',  '98765432101', '2022-03-15', 'Active','D01'),
 ('112','Priya Singh',    'priya.singh@email.com',   '98123456781', '2021-07-01', 'Active','D01'),
